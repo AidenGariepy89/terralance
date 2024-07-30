@@ -16,23 +16,21 @@ pub const TileType = enum {
 
 pub const Tile = struct {
     tile_type: TileType,
-    color: color.RGB,
+    /// 0-255, sea level to mountain peak for ground,
+    /// ocean floor to sea level for water.
+    altitude: u8,
 };
 
 pub const MapGenSettings = struct {
-    noise_min: f32,
-    noise_max: f32,
+    sea_level: f32,
 
+    continent_noise_min: f32,
+    continent_noise_max: f32,
     continent_resolution: f32,
-    continent_threshold: f32,
     continent_octaves: u32,
-
-    ground_high_color: color.HSV,
-    ground_low_color: color.HSV,
-    water_high_color: color.HSV,
-    water_low_color: color.HSV,
 };
 
+pub const MapSmall = Map(100);
 pub const MapNormal = Map(200);
 
 pub fn Map(comptime map_width: u32) type {
@@ -55,8 +53,8 @@ pub fn Map(comptime map_width: u32) type {
             var rng = std.Random.DefaultPrng.init(seed);
             const noise = PerlinNoise.init(rng.random());
 
-            assert(settings.noise_min < settings.noise_max, "Noise min must be less than noise max");
-            assert(settings.continent_threshold > 0 and settings.continent_threshold < 1, "Threshold must be > 0 and < 1");
+            assert(settings.continent_noise_min < settings.continent_noise_max, "Noise min must be less than noise max");
+            assert(settings.sea_level >= 0 and settings.sea_level < 1, "Threshold must be >= 0 and < 1");
 
             for (0..MapWidth) |i| {
                 for (0..MapWidth) |j| {
@@ -64,94 +62,34 @@ pub fn Map(comptime map_width: u32) type {
                     const y: f32 = @as(f32, @floatFromInt(i)) * settings.continent_resolution;
 
                     const noise_val = noise.fbm(x, y, settings.continent_octaves);
-                    const val = math.progress(settings.noise_min, settings.noise_max, noise_val);
+                    const val = math.progress(settings.continent_noise_min, settings.continent_noise_max, noise_val);
 
-                    const tile = generate_tile_from_noise(val, settings);
-
-                    const idx = (i * MapWidth) + j;
-                    assert(idx < MapWidth * MapWidth, "Index out of bounds!");
-                    self.grid[idx] = tile;
-                }
-            }
-        }
-
-        pub fn generate_with_info(self: *Self, seed: u64, settings: MapGenSettings, allocator: std.mem.Allocator) math.NoiseCollector.Report {
-            self.seed = seed;
-            var rng = std.Random.DefaultPrng.init(seed);
-            var noise = math.NoiseCollector.init(allocator, rng.random());
-            defer noise.deinit();
-
-            assert(settings.noise_min < settings.noise_max, "Noise min must be less than noise max");
-            assert(settings.continent_threshold > 0 and settings.continent_threshold < 1, "Threshold must be > 0 and < 1");
-
-            for (0..MapWidth) |i| {
-                for (0..MapWidth) |j| {
-                    const x: f32 = @as(f32, @floatFromInt(j)) * settings.continent_resolution;
-                    const y: f32 = @as(f32, @floatFromInt(i)) * settings.continent_resolution;
-
-                    const noise_val = noise.fbm(x, y, settings.continent_octaves);
-                    const val = math.progress(settings.noise_min, settings.noise_max, noise_val);
-
-                    const tile = generate_tile_from_noise(val, settings);
+                    var tile_type: TileType = undefined;
+                    var altitude: u8 = 0;
+                    if (val >= settings.sea_level) {
+                        tile_type = .ground;
+                        altitude = @intFromFloat(math.progress(settings.sea_level, 1, val) * 255);
+                    } else {
+                        tile_type = .water;
+                        altitude = @intFromFloat(math.progress(0, settings.sea_level, val) * 255);
+                    }
 
                     const idx = (i * MapWidth) + j;
                     assert(idx < MapWidth * MapWidth, "Index out of bounds!");
-                    self.grid[idx] = tile;
+                    self.grid[idx] = Tile{
+                        .tile_type = tile_type,
+                        .altitude = altitude,
+                    };
                 }
             }
-
-            return noise.report();
-        }
-
-        pub fn generate_tile_from_noise(val: f32, settings: MapGenSettings) Tile {
-            var tile_type: TileType = undefined;
-            var tile_color: color.HSV = undefined;
-            if (val > settings.continent_threshold) {
-                tile_type = .ground;
-
-                const percent = math.progress(settings.continent_threshold, 1, val);
-                tile_color = color.HSV{
-                    .hue        = math.lerp(settings.ground_low_color.hue,        settings.ground_high_color.hue,        percent),
-                    .saturation = math.lerp(settings.ground_low_color.saturation, settings.ground_high_color.saturation, percent),
-                    .value      = math.lerp(settings.ground_low_color.value,      settings.ground_high_color.value,      percent),
-                };
-            } else {
-                tile_type = .water;
-
-                const percent = math.progress(0, settings.continent_threshold, val);
-                tile_color = color.HSV{
-                    .hue        = math.lerp(settings.water_low_color.hue,        settings.water_high_color.hue,        percent),
-                    .saturation = math.lerp(settings.water_low_color.saturation, settings.water_high_color.saturation, percent),
-                    .value      = math.lerp(settings.water_low_color.value,      settings.water_high_color.value,      percent),
-                };
-            }
-
-            return .{ .tile_type = tile_type, .color = color.hsv_to_rgb(tile_color) };
         }
 
         pub fn generate_blank_map(self: *Self) void {
-            const green_color = color.RGB{ .r = 56, .g = 143, .b = 79 };
             for (0..self.grid.len) |i| {
                 self.grid[i] = Tile{
                     .tile_type = .ground,
-                    .color = green_color,
+                    .altitude = 0,
                 };
-            }
-        }
-
-        pub fn export_to_file(self: Self) !void {
-            var img = rl.genImageColor(Self.MapWidth, Self.MapWidth, rl.Color.black);
-            for (0..self.grid.len) |i| {
-                const x: i32 = @intCast(i % Self.MapWidth);
-                const y: i32 = @intCast(i / Self.MapWidth);
-
-                img.drawPixel(x, y, self.grid[i].color.to_raylib());
-            }
-
-            var buf: [64]u8 = undefined;
-            const res = img.exportToFile(try std.fmt.bufPrintZ(&buf, "exports/map-{}.png", .{self.seed.?}));
-            if (!res) {
-                return error.FileSaveFailed;
             }
         }
     };

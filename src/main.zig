@@ -7,50 +7,102 @@ const rl = @import("raylib");
 const assert = @import("assert.zig").assert;
 const print = std.debug.print;
 
-const Map = game.map.MapNormal;
+const Map = game.map.MapSmall;
 pub fn main() !void {
-    // var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    // defer _ = gpa.deinit();
-    // const allocator = gpa.allocator();
-
-    // const seed: u64 = @intCast(std.time.milliTimestamp());
+    const seed: u64 = @intCast(std.time.milliTimestamp());
     // const seed: u64 = 69420;
 
     var map = Map.init();
     const settings = game.map.MapGenSettings{
-        .noise_min = -0.005,
-        .noise_max = 0.005,
-        .continent_threshold = 0.25,
+        .sea_level = 0.18,
+        .continent_noise_min = -0.0043,
+        .continent_noise_max = 0.005,
         .continent_octaves = 5,
-        .continent_resolution = 0.005,
-        .water_low_color = .{ .hue = 241, .saturation = 0.93, .value = 0.31 },
-        .water_high_color = .{ .hue = 212, .saturation = 0.85, .value = 0.75 },
-        .ground_low_color = .{ .hue = 122, .saturation = 0.60, .value = 0.47 },
-        .ground_high_color = .{ .hue = 138, .saturation = 0.48, .value = 0.72 },
+        .continent_resolution = 0.012,
     };
-    for (0..20) |_| {
-        const seed: u64 = @intCast(std.time.milliTimestamp());
-        map.generate(seed, settings);
-        try map.export_to_file();
+    map.generate(seed, settings);
+
+    // try csv(&map, .water);
+
+    w.init(800, 600);
+    defer w.deinit();
+
+    var texture = visualize(&map);
+    const scale: f32 = 3;
+    const map_width: f32 = @floatFromInt(Map.MapWidth);
+
+    while (!w.shouldClose()) {
+        const center = rl.Vector2{
+            .x = w.wh_f() - map_width * 0.5 * scale,
+            .y = w.hh_f() - map_width * 0.5 * scale,
+        };
+
+        if (rl.isKeyPressed(.key_space)) {
+            const new_seed: u64 = @intCast(std.time.milliTimestamp());
+            map.generate(new_seed, settings);
+            texture.unload();
+            texture = visualize(&map);
+        }
+
+        rl.beginDrawing();
+        defer rl.endDrawing();
+
+        rl.clearBackground(rl.Color.white);
+
+        texture.drawEx(center, 0, scale, rl.Color.white);
     }
-    
-    // w.init(800, 600);
-    //
-    // while (!w.shouldClose()) {
-    //     rl.beginDrawing();
-    //     defer rl.endDrawing();
-    //
-    //     rl.clearBackground(rl.Color.white);
-    //
-    //     for (0..map.grid.len) |i| {
-    //         const x: i32 = @intCast(i % Map.MapWidth);
-    //         const y: i32 = @intCast(i / Map.MapWidth);
-    //
-    //         rl.drawPixel(x, y, map.grid[i].color.to_raylib());
-    //     }
-    // }
-    //
-    // defer w.deinit();
+}
+
+fn csv(map: *Map, filter: game.map.TileType) !void {
+    const stdout_file = std.io.getStdOut().writer();
+    var bw = std.io.bufferedWriter(stdout_file);
+    const stdout = bw.writer();
+    var i: usize = 0;
+    for (map.grid) |tile| {
+        if (tile.tile_type != filter) {
+            continue;
+        }
+        try stdout.print("{},", .{tile.altitude});
+        i += 1;
+    }
+    try bw.flush();
+}
+
+fn visualize(map: *Map) rl.Texture2D {
+    const water_shallow = color.HSV{ .hue = 227, .saturation = 0.75, .value = 0.97 };
+    const water_deep = color.HSV{ .hue = 227, .saturation = 0.97, .value = 0.26 };
+    const ground_low = color.HSV{ .hue = 130, .saturation = 0.88, .value = 0.31 };
+    const ground_high = color.HSV{ .hue = 145, .saturation = 0.52, .value = 0.64 };
+
+    var image = rl.genImageColor(Map.MapWidth, Map.MapWidth, rl.Color.black);
+
+    for (0..map.grid.len) |i| {
+        const x: i32 = @intCast(i % Map.MapWidth);
+        const y: i32 = @intCast(i / Map.MapWidth);
+        const altitude: f32 = @as(f32, @floatFromInt(map.grid[i].altitude)) / 255;
+        var col: color.RGB = undefined;
+
+        if (map.grid[i].tile_type == .ground) {
+            col = color.hsv_to_rgb(.{
+                .hue        = math.lerp(ground_low.hue,        ground_high.hue,        altitude),
+                .saturation = math.lerp(ground_low.saturation, ground_high.saturation, altitude),
+                .value      = math.lerp(ground_low.value,      ground_high.value,      altitude),
+            });
+        } else {
+            col = color.hsv_to_rgb(.{
+                .hue        = math.lerp(water_deep.hue,        water_shallow.hue,        altitude),
+                .saturation = math.lerp(water_deep.saturation, water_shallow.saturation, altitude),
+                .value      = math.lerp(water_deep.value,      water_shallow.value,      altitude),
+            });
+        }
+
+        image.drawPixel(x, y, col.to_raylib());
+    }
+
+    const texture = rl.loadTextureFromImage(image);
+    image.unload();
+
+    return texture;
 }
 
 test { _ = math; }
