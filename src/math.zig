@@ -69,6 +69,74 @@ pub const Vec = struct {
     }
 };
 
+pub const NoiseCollector = struct {
+    const Self = @This();
+    const List = std.ArrayList(f32);
+
+    pub const Report = struct {
+        min: f32,
+        max: f32,
+        avg: f32,
+        med: f32,
+
+        pub fn print(self: Report) void {
+            std.debug.print("Noise Collector Report:\n", .{});
+            std.debug.print("  Min: {d}\n", .{self.min});
+            std.debug.print("  Max: {d}\n", .{self.max});
+            std.debug.print("  Avg: {d}\n", .{self.avg});
+            std.debug.print("  Med: {d}\n", .{self.med});
+        }
+    };
+
+    noise: PerlinNoise,
+    values: List,
+
+    pub fn init(allocator: std.mem.Allocator, random: std.Random) Self {
+        return Self{
+            .noise = PerlinNoise.init(random),
+            .values = List.init(allocator),
+        };
+    }
+
+    pub fn deinit(self: *Self) void {
+        self.values.deinit();
+        self.* = undefined;
+    }
+
+    /// Fractal Brownian Motion
+    pub fn fbm(self: *Self, x: f32, y: f32, octaves: u32) f32 {
+        const result = self.noise.fbm(x, y, octaves);
+        self.values.append(result) catch unreachable;
+        return result;
+    }
+
+    pub fn report(self: Self) Report {
+        var min: f32 = 100;
+        var max: f32 = -100;
+        var sum: f32 = 0;
+
+        for (self.values.items) |item| {
+            if (item < min) {
+                min = item;
+            }
+            if (item > max) {
+                max = item;
+            }
+            sum += item;
+        }
+
+        const avg = sum / @as(f32, @floatFromInt(self.values.items.len));
+        const med = self.values.items[self.values.items.len / 2];
+
+        return Report{
+            .min = min,
+            .max = max,
+            .avg = avg,
+            .med = med,
+        };
+    }
+};
+
 // Perlin Noise
 pub const PerlinNoise = struct {
     const Self = @This();
@@ -111,6 +179,7 @@ pub const PerlinNoise = struct {
             frequency *= 2;
         }
 
+        assert(result >= -1 and result <= 1, "Result must be >= -1 and <= 1");
         return result;
     }
 
@@ -147,11 +216,13 @@ pub const PerlinNoise = struct {
         const u = ease(x_f);
         const v = ease(y_f);
 
-        return lerp(
+        const result = lerp(
             lerp(dot_top_left, dot_bottom_left, v),
             lerp(dot_top_right, dot_bottom_right, v),
             u,
         );
+        assert(result >= -1 and result <= 1, "Result must be >= -1 and <= 1");
+        return result;
     }
 
     fn inc_with_wrap(x: u32) u32 {
@@ -178,39 +249,21 @@ pub fn lerp(a1: f32, a2: f32, percent: f32) f32 {
     return a1 + percent * (a2 - a1);
 }
 
-pub const HSV = struct {
-    /// In degrees, 0 <= hue <= 360
-    hue: f32,
-    saturation: f32,
-    value: f32,
-};
+/// Returns a percentage of the progress of val from min to max.
+/// If val is less than min, returns 0.
+/// If val is greater than max, returns 1.
+pub fn progress(min: f32, max: f32, val: f32) f32 {
+    assert(min < max, "min must be less than max");
 
-pub const RGB = struct {
-    r: u8,
-    g: u8,
-    b: u8,
-};
+    if (val < min) {
+        return 0;
+    }
+    if (val > max) {
+        return 1;
+    }
 
-pub fn hsv_to_rgb(hsv: HSV) RGB {
-    assert(hsv.hue >= 0 and hsv.hue <= 360 , "Hue is in degrees and must be >= 0 and <= 360");
-    assert(hsv.saturation >= 0 and hsv.saturation <= 1, "Saturation must be >= 0 and <= 1");
-    assert(hsv.value >= 0 and hsv.value <= 1, "Value must be >= 0 and <= 1");
-
-    const r_f = hsv_to_rgb_transformation(hsv, 5);
-    const g_f = hsv_to_rgb_transformation(hsv, 3);
-    const b_f = hsv_to_rgb_transformation(hsv, 1);
-
-    return RGB{
-        .r = @intFromFloat(@round(r_f * 255)),
-        .g = @intFromFloat(@round(g_f * 255)),
-        .b = @intFromFloat(@round(b_f * 255)),
-    };
-}
-
-fn hsv_to_rgb_transformation(hsv: HSV, n: f32) f32 {
-    const k: f32 = @mod((n + hsv.hue / 60), 6);
-    const result: f32 = hsv.value - hsv.value * hsv.saturation * @max(0, @min(k, @min(4 - k, 1)));
-    assert(result >= 0 and result <= 1, "Result must be >= 0 and <= 1");
+    const result = (val - min) / (max - min);
+    assert(result >= 0 and result <= 1, "result must be >= 0 and <= 1");
     return result;
 }
 
@@ -223,34 +276,4 @@ test "dot and cross" {
 
     const dot = vec_a.dot(vec_b);
     try t.expectEqual(4, dot);
-}
-
-test "hsv to rgb" {
-    const input_red = HSV{
-        .hue = 0,
-        .saturation = 1,
-        .value = 1,
-    };
-    const expected_red = RGB{
-        .r = 255,
-        .g = 0,
-        .b = 0,
-    };
-
-    const actual_red = hsv_to_rgb(input_red);
-    try t.expectEqual(expected_red, actual_red);
-
-    const input_purple = HSV{
-        .hue = 283,
-        .saturation = 0.49,
-        .value = 0.92,
-    };
-    const expected_purple = RGB{
-        .r = 202,
-        .g = 120,
-        .b = 235,
-    };
-
-    const actual_purple = hsv_to_rgb(input_purple);
-    try t.expectEqual(expected_purple, actual_purple);
 }
