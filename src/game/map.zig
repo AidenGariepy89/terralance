@@ -105,6 +105,60 @@ pub fn Map(comptime map_width: u32) type {
                 };
             }
         }
+
+        pub fn visualize(self: *Self) rl.Texture2D {
+            const water_shallow = color.HSV{ .hue = 227, .saturation = 0.75, .value = 0.97 };
+            const water_deep = color.HSV{ .hue = 227, .saturation = 0.97, .value = 0.26 };
+            const ground_low = color.HSV{ .hue = 130, .saturation = 0.88, .value = 0.31 };
+            const ground_high = color.HSV{ .hue = 145, .saturation = 0.52, .value = 0.64 };
+
+            var image = rl.genImageColor(Self.MapWidth, Self.MapWidth, rl.Color.black);
+
+            for (0..self.grid.len) |i| {
+                const x: i32 = @intCast(i % Self.MapWidth);
+                const y: i32 = @intCast(i / Self.MapWidth);
+                const altitude: f32 = @as(f32, @floatFromInt(self.grid[i].altitude)) / 255;
+                var col: color.RGB = undefined;
+
+                if (self.grid[i].tile_type == .ground) {
+                    col = color.hsv_to_rgb(ground_low.lerp(ground_high, altitude));
+                } else {
+                    col = color.hsv_to_rgb(water_deep.lerp(water_shallow, altitude));
+                }
+
+                image.drawPixel(x, y, col.to_raylib());
+            }
+
+            const texture = rl.loadTextureFromImage(image);
+            image.unload();
+
+            return texture;
+        }
+
+        pub fn visualize_temperature(self: *Self) rl.Texture2D {
+            const cold = color.HSV{ .hue = 267, .saturation = 1.00, .value = 1.00 };
+            const hot = color.HSV{ .hue = 0, .saturation = 1.00, .value = 1.00 };
+
+            var image = rl.genImageColor(Self.MapWidth, Self.MapWidth, rl.Color.black);
+            for (0..self.grid.len) |i| {
+                const x: i32 = @intCast(i % Self.MapWidth);
+                const y: i32 = @intCast(i / Self.MapWidth);
+                const temperature: f32 = @as(f32, @floatFromInt(self.grid[i].temperature)) / 255;
+
+                const col = color.hsv_to_rgb(.{
+                    .hue = math.lerp(cold.hue, hot.hue, temperature),
+                    .saturation = 1,
+                    .value = 1,
+                });
+
+                image.drawPixel(x, y, col.to_raylib());
+            }
+
+            const texture = rl.loadTextureFromImage(image);
+            image.unload();
+
+            return texture;
+        }
     };
 }
 

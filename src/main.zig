@@ -41,8 +41,8 @@ pub fn main() !void {
     };
 
     var mode: VisualizeMode = .temp;
-    var map_texture = visualize(&map);
-    var temperature_texture = visualize_temperature(&map);
+    var map_texture = map.visualize();
+    var temperature_texture = map.visualize_temperature();
     const scale: f32 = 3;
     const map_width: f32 = @floatFromInt(Map.MapWidth);
 
@@ -56,9 +56,9 @@ pub fn main() !void {
             const new_seed: u64 = @intCast(std.time.milliTimestamp());
             map.generate(new_seed, settings);
             map_texture.unload();
-            map_texture = visualize(&map);
+            map_texture = map.visualize();
             temperature_texture.unload();
-            temperature_texture = visualize_temperature(&map);
+            temperature_texture = map.visualize_temperature();
         }
 
         if (rl.isKeyPressed(.key_m)) {
@@ -75,75 +75,6 @@ pub fn main() !void {
             .temp => temperature_texture.drawEx(center, 0, scale, rl.Color.white),
         }
     }
-}
-
-fn csv(map: *Map, filter: game.map.TileType) !void {
-    const stdout_file = std.io.getStdOut().writer();
-    var bw = std.io.bufferedWriter(stdout_file);
-    const stdout = bw.writer();
-    var i: usize = 0;
-    for (map.grid) |tile| {
-        if (tile.tile_type != filter) {
-            continue;
-        }
-        try stdout.print("{},", .{tile.altitude});
-        i += 1;
-    }
-    try bw.flush();
-}
-
-fn visualize_temperature(map: *Map) rl.Texture2D {
-    const cold = color.HSV{ .hue = 267, .saturation = 1.00, .value = 1.00 };
-    const hot = color.HSV{ .hue = 0, .saturation = 1.00, .value = 1.00 };
-
-    var image = rl.genImageColor(Map.MapWidth, Map.MapWidth, rl.Color.black);
-    for (0..(Map.MapWidth*Map.MapWidth)) |i| {
-        const x: i32 = @intCast(i % Map.MapWidth);
-        const y: i32 = @intCast(i / Map.MapWidth);
-        const temperature: f32 = @as(f32, @floatFromInt(map.grid[i].temperature)) / 255;
-
-        const col = color.hsv_to_rgb(.{
-            .hue = math.lerp(cold.hue, hot.hue, temperature),
-            .saturation = 1,
-            .value = 1,
-        });
-
-        image.drawPixel(x, y, col.to_raylib());
-    }
-
-    const texture = rl.loadTextureFromImage(image);
-    image.unload();
-
-    return texture;
-}
-
-fn visualize(map: *Map) rl.Texture2D {
-    const water_shallow = color.HSV{ .hue = 227, .saturation = 0.75, .value = 0.97 };
-    const water_deep = color.HSV{ .hue = 227, .saturation = 0.97, .value = 0.26 };
-    const ground_low = color.HSV{ .hue = 130, .saturation = 0.88, .value = 0.31 };
-    const ground_high = color.HSV{ .hue = 145, .saturation = 0.52, .value = 0.64 };
-
-    var image = rl.genImageColor(Map.MapWidth, Map.MapWidth, rl.Color.black);
-
-    for (0..map.grid.len) |i| {
-        const x: i32 = @intCast(i % Map.MapWidth);
-        const y: i32 = @intCast(i / Map.MapWidth);
-        const altitude: f32 = @as(f32, @floatFromInt(map.grid[i].altitude)) / 255;
-        var col: color.RGB = undefined;
-
-        if (map.grid[i].tile_type == .ground) {
-            col = color.hsv_to_rgb(ground_low.lerp(ground_high, altitude));
-        } else {
-            col = color.hsv_to_rgb(water_deep.lerp(water_shallow, altitude));
-        }
-
-        image.drawPixel(x, y, col.to_raylib());
-    }
-
-    const texture = rl.loadTextureFromImage(image);
-    image.unload();
-
-    return texture;
 }
 
 test { _ = math; }
