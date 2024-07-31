@@ -23,7 +23,7 @@ str_nums = contents.split(",")
 for str_num in str_nums:
     if str_num == "":
         continue
-    x.append(int(str_num))
+    x.append(float(str_num))
 
 plt.hist(x, 256)
 plt.show()

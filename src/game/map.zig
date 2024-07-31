@@ -19,6 +19,8 @@ pub const Tile = struct {
     /// 0-255, sea level to mountain peak for ground,
     /// ocean floor to sea level for water.
     altitude: u8,
+
+    temperature: u8,
 };
 
 pub const MapGenSettings = struct {
@@ -28,6 +30,11 @@ pub const MapGenSettings = struct {
     continent_noise_max: f32,
     continent_resolution: f32,
     continent_octaves: u32,
+
+    temperature_noise_min: f32,
+    temperature_noise_max: f32,
+    temperature_resolution: f32,
+    temperature_octaves: u32,
 };
 
 pub const MapSmall = Map(100);
@@ -56,32 +63,38 @@ pub fn Map(comptime map_width: u32) type {
             assert(settings.continent_noise_min < settings.continent_noise_max, "Noise min must be less than noise max");
             assert(settings.sea_level >= 0 and settings.sea_level < 1, "Threshold must be >= 0 and < 1");
 
-            for (0..MapWidth) |i| {
-                for (0..MapWidth) |j| {
-                    const x: f32 = @as(f32, @floatFromInt(j)) * settings.continent_resolution;
-                    const y: f32 = @as(f32, @floatFromInt(i)) * settings.continent_resolution;
-
-                    const noise_val = noise.fbm(x, y, settings.continent_octaves);
-                    const val = math.progress(settings.continent_noise_min, settings.continent_noise_max, noise_val);
-
-                    var tile_type: TileType = undefined;
-                    var altitude: u8 = 0;
-                    if (val >= settings.sea_level) {
-                        tile_type = .ground;
-                        altitude = @intFromFloat(math.progress(settings.sea_level, 1, val) * 255);
-                    } else {
-                        tile_type = .water;
-                        altitude = @intFromFloat(math.progress(0, settings.sea_level, val) * 255);
-                    }
-
-                    const idx = (i * MapWidth) + j;
-                    assert(idx < MapWidth * MapWidth, "Index out of bounds!");
-                    self.grid[idx] = Tile{
-                        .tile_type = tile_type,
-                        .altitude = altitude,
-                    };
-                }
+            for (0..(MapWidth*MapWidth)) |i| {
+                var tile: Tile = undefined;
+                generate_altitude_pass(i, &noise, settings, &tile);
+                generate_temperature_pass(i, &noise, settings, &tile);
+                self.grid[i] = tile;
             }
+        }
+
+        pub fn generate_altitude_pass(i: usize, noise: *const PerlinNoise, settings: MapGenSettings, out_tile: *Tile) void {
+            const x: f32 = settings.continent_resolution * @as(f32, @floatFromInt(i % Self.MapWidth));
+            const y: f32 = settings.continent_resolution * @as(f32, @floatFromInt(i / Self.MapWidth));
+
+            const noise_val = noise.fbm(x, y, settings.continent_octaves);
+            const val = math.progress(settings.continent_noise_min, settings.continent_noise_max, noise_val);
+
+            if (val >= settings.sea_level) {
+                out_tile.tile_type = .ground;
+                out_tile.altitude = @intFromFloat(@round(math.progress(settings.sea_level, 1, val) * 255));
+            } else {
+                out_tile.tile_type = .water;
+                out_tile.altitude = @intFromFloat(@round(math.progress(0, settings.sea_level, val) * 255));
+            }
+        }
+
+        pub fn generate_temperature_pass(i: usize, noise: *const PerlinNoise, settings: MapGenSettings, out_tile: *Tile) void {
+            const x: f32 = settings.temperature_resolution * @as(f32, @floatFromInt(i % Self.MapWidth));
+            const y: f32 = settings.temperature_resolution * @as(f32, @floatFromInt(i / Self.MapWidth));
+
+            const noise_val = noise.fbm(x, y, settings.temperature_octaves);
+            const val = math.progress(settings.temperature_noise_min, settings.temperature_noise_max, noise_val);
+
+            out_tile.temperature = @intFromFloat(@round(val * 255));
         }
 
         pub fn generate_blank_map(self: *Self) void {

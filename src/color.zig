@@ -1,13 +1,24 @@
 const std = @import("std");
 const rl = @import("raylib");
-const t = std.testing;
+const testing = std.testing;
+const math = @import("math.zig");
 const assert = @import("assert.zig").assert;
 
 pub const HSV = struct {
     /// In degrees, 0 <= hue <= 360
     hue: f32,
+    /// 0 <= saturation <= 1
     saturation: f32,
+    /// 0 <= value <= 1
     value: f32,
+
+    pub fn lerp(self: HSV, other: HSV, t: f32) HSV {
+        return HSV{
+            .hue        = math.lerp(self.hue,        other.hue,        t),
+            .saturation = math.lerp(self.saturation, other.saturation, t),
+            .value      = math.lerp(self.value,      other.value,      t),
+        };
+    }
 };
 
 pub const RGB = struct {
@@ -61,7 +72,7 @@ test "hsv to rgb" {
     };
 
     const actual_red = hsv_to_rgb(input_red);
-    try t.expectEqual(expected_red, actual_red);
+    try testing.expectEqual(expected_red, actual_red);
 
     const input_purple = HSV{
         .hue = 283,
@@ -75,5 +86,5 @@ test "hsv to rgb" {
     };
 
     const actual_purple = hsv_to_rgb(input_purple);
-    try t.expectEqual(expected_purple, actual_purple);
+    try testing.expectEqual(expected_purple, actual_purple);
 }

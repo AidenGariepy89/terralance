@@ -1,5 +1,5 @@
 const std = @import("std");
-const t = std.testing;
+const testing = std.testing;
 const assert = @import("assert.zig").assert;
 
 pub const pi = std.math.pi;
@@ -66,6 +66,10 @@ pub const Vec = struct {
 
         const scalar = 1.0 / m;
         return self.scale(scalar);
+    }
+
+    pub fn lerp(self: Vec, other: Vec, t: f32) Vec {
+        return self.add(other.subtract(self).scale(t));
     }
 };
 
@@ -267,13 +271,25 @@ pub fn progress(min: f32, max: f32, val: f32) f32 {
     return result;
 }
 
+pub fn cubic_bezier(p0: Vec, p1: Vec, p2: Vec, p3: Vec, t: f32) Vec {
+    const q0 = p0.lerp(p1, t);
+    const q1 = p1.lerp(p2, t);
+    const q2 = p2.lerp(p3, t);
+
+    const r0 = q0.lerp(q1, t);
+    const r1 = q1.lerp(q2, t);
+
+    const s = r0.lerp(r1, t);
+    return s;
+}
+
 test "dot and cross" {
     const vec_a = Vec.init(1, 2);
     const vec_b = Vec.init(2, 1);
 
     const cross = vec_a.cross(vec_b);
-    try t.expectEqual(-3, cross);
+    try testing.expectEqual(-3, cross);
 
     const dot = vec_a.dot(vec_b);
-    try t.expectEqual(4, dot);
+    try testing.expectEqual(4, dot);
 }
