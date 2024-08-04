@@ -15,6 +15,11 @@ pub fn main() !void {
     defer c.deinit();
 
     while (true) {
+        if (rl.isKeyPressed(.key_r)) {
+            c.restart();
+            gs = null;
+        }
+
         const req = c.update() orelse continue;
 
         switch (req) {
@@ -23,7 +28,7 @@ pub fn main() !void {
                 break;
             },
             .new_game => {
-                gs = game.GameState.new_game(69420);
+                gs = game.GameState.new_game(null);
                 c.cgs = gs.?.get_client_state();
             },
         }

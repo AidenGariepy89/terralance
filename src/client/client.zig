@@ -43,12 +43,23 @@ pub const Client = struct {
     }
 
     pub fn deinit(self: *Self) void {
-        if (self.world_texture) |txtr| {
-            txtr.unload();
-        }
+        self.shutdown();
 
         w.deinit();
         self.* = undefined;
+    }
+
+    pub fn shutdown(self: *Self) void {
+        if (self.world_texture) |txtr| {
+            self.world_texture = null;
+            txtr.unload();
+        }
+        self.cgs = null;
+    }
+
+    pub fn restart(self: *Self) void {
+        self.shutdown();
+        self.screen = .title;
     }
 
     pub fn update(self: *Self) ?ClientRequest {
