@@ -1,7 +1,6 @@
 const std = @import("std");
 const rl = @import("raylib");
 const w = @import("../window.zig");
-const ui = @import("ui.zig");
 const assert = @import("../assert.zig").assert;
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
@@ -128,7 +127,10 @@ pub const Client = struct {
         if (self.world_texture == null) {
             self.world_texture = cgs.world_map.visualize();
         }
-        const map_wh: i32 = @intCast(cgs.world_map.width() / 2);
-        self.world_texture.?.draw(w.wh() - map_wh, w.hh() - map_wh, rl.Color.white);
+        const map_scale: f32 = 3;
+        const map_wh_f: f32 = map_scale * @as(f32, @floatFromInt(cgs.world_map.width() / 2));
+        const map_position = Vec2.init(w.wh_f() - map_wh_f, w.hh_f() - map_wh_f);
+
+        self.world_texture.?.drawEx(map_position, 0, map_scale, rl.Color.white);
     }
 };
