@@ -46,29 +46,33 @@ pub fn Map(comptime map_width: u32) type {
         pub const MapWidth = map_width;
 
         grid: [MapWidth * MapWidth]Tile,
-        seed: ?u64,
+        seed: u64,
 
-        pub fn init() Self {
-            return Self{
-                .grid = undefined,
-                .seed = null,
-            };
+        pub fn width(self: *const Self) u32 {
+            _ = self;
+            return Self.MapWidth;
         }
 
-        pub fn generate(self: *Self, seed: u64, settings: MapGenSettings) void {
-            self.seed = seed;
+        pub fn generate(seed: u64, settings: MapGenSettings) Self {
             var rng = std.Random.DefaultPrng.init(seed);
             const noise = PerlinNoise.init(rng.random());
 
             assert(settings.continent_noise_min < settings.continent_noise_max, "Noise min must be less than noise max");
             assert(settings.sea_level >= 0 and settings.sea_level < 1, "Threshold must be >= 0 and < 1");
 
+            var grid: [MapWidth * MapWidth]Tile = undefined;
+
             for (0..(MapWidth*MapWidth)) |i| {
                 var tile: Tile = undefined;
                 generate_altitude_pass(i, &noise, settings, &tile);
                 generate_temperature_pass(i, &noise, settings, &tile);
-                self.grid[i] = tile;
+                grid[i] = tile;
             }
+
+            return Self{
+                .grid = grid,
+                .seed = seed,
+            };
         }
 
         pub fn generate_altitude_pass(i: usize, noise: *const PerlinNoise, settings: MapGenSettings, out_tile: *Tile) void {
@@ -97,16 +101,7 @@ pub fn Map(comptime map_width: u32) type {
             out_tile.temperature = @intFromFloat(@round(val * 255));
         }
 
-        pub fn generate_blank_map(self: *Self) void {
-            for (0..self.grid.len) |i| {
-                self.grid[i] = Tile{
-                    .tile_type = .ground,
-                    .altitude = 0,
-                };
-            }
-        }
-
-        pub fn visualize(self: *Self) rl.Texture2D {
+        pub fn visualize(self: *const Self) rl.Texture2D {
             const water_shallow = color.HSV{ .hue = 227, .saturation = 0.75, .value = 0.97 };
             const water_deep = color.HSV{ .hue = 227, .saturation = 0.97, .value = 0.26 };
             const ground_low = color.HSV{ .hue = 130, .saturation = 0.88, .value = 0.31 };
@@ -135,7 +130,7 @@ pub fn Map(comptime map_width: u32) type {
             return texture;
         }
 
-        pub fn visualize_temperature(self: *Self) rl.Texture2D {
+        pub fn visualize_temperature(self: *const Self) rl.Texture2D {
             const cold = color.HSV{ .hue = 267, .saturation = 1.00, .value = 1.00 };
             const hot = color.HSV{ .hue = 0, .saturation = 1.00, .value = 1.00 };
 
@@ -160,9 +155,4 @@ pub fn Map(comptime map_width: u32) type {
             return texture;
         }
     };
-}
-
-test "generating maps" {
-    var map = MapNormal{ .grid = undefined };
-    map.generate_blank_map();
 }
