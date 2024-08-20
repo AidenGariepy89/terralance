@@ -3,3 +3,5 @@ zig-out
 exports
 tools/env
 *.csv
+tmp
+.air.toml

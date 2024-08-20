@@ -139,7 +139,7 @@ pub const Client = struct {
             self.world_texture = cgs.world_map.visualize();
         }
         const map_scale: f32 = 3;
-        const map_wh_f: f32 = map_scale * @as(f32, @floatFromInt(cgs.world_map.width() / 2));
+        const map_wh_f: f32 = map_scale * @as(f32, @floatFromInt(cgs.world_map.grid_width / 2));
         const map_position = Vec2.init(w.wh_f() - map_wh_f, w.hh_f() - map_wh_f);
 
         self.world_texture.?.drawEx(map_position, 0, map_scale, rl.Color.white);
