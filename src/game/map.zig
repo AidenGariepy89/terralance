@@ -72,7 +72,6 @@ pub const Map = struct {
 
         return Self{
             .grid = grid_buf,
-            .grid_width = GridWidth,
             .seed = seed,
         };
     }
@@ -323,7 +322,6 @@ pub const Map = struct {
 
         return Self{
             .grid = grid_buf,
-            .grid_width = GridWidth,
             .seed = seed,
         };
     }
