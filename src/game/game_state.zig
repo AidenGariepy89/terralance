@@ -5,7 +5,7 @@ const Map = map.Map;
 const Vec = @import("../math.zig").Vec;
 const Allocator = std.mem.Allocator;
 
-const MapWidth = 200;
+const MapWidth = Map.GridWidth;
 
 pub const Player = struct {
     const BitSet = std.bit_set.ArrayBitSet(u8, MapWidth * MapWidth);
@@ -29,7 +29,6 @@ pub const GameState = struct {
     id: u64,
 
     world_map: Map,
-    world_map_buf: [MapWidth * MapWidth]map.Tile,
 
     players: Players,
 
@@ -52,17 +51,7 @@ pub const GameState = struct {
         assert(settings.player_count > 1, "Must have more than one player!");
         assert(settings.player_count < 3, "More than two players not implemented yet!");
 
-        // var file = std.fs.cwd().openFile("output.map", .{}) catch unreachable;
-        // defer file.close();
-        //
-        // var buf_reader = std.io.bufferedReader(file.reader());
-        // var reader = buf_reader.reader();
-        //
-        // var file_buf: [200 * 200 * 5]u8 = undefined;
-        // const n = reader.readAll(&file_buf) catch unreachable;
-
-        var buf: [200 * 200]map.Tile = undefined;
-        const world_map = Map.generate(200, &buf, settings.seed orelse gen_seed(), .{
+        const world_map = Map.generate(settings.seed orelse gen_seed(), .{
             .sea_level = 0.18,
 
             .continent_noise_min = -0.0043,
@@ -75,7 +64,6 @@ pub const GameState = struct {
             .temperature_octaves = 2,
             .temperature_resolution = 0.02,
         });
-        // const world_map = Map.decode_rle(file_buf[0..n], &buf);
 
         var red_player = Player.init();
         const r = Self.player_start_view_radius;
@@ -86,21 +74,23 @@ pub const GameState = struct {
             }
         }
 
-        // assert(red_player.world_known.capacity() == world_map.grid.len, "Lengths MUST be the same!");
-        // for (0..world_map.grid.len) |i| {
-        //     if (red_player.world_known.isSet(i)) {
-        //         std.debug.print("1", .{});
-        //     } else {
-        //         std.debug.print("0", .{});
-        //     }
-        //     if ((i + 1) % 200 == 0) {
-        //         std.debug.print("\n", .{});
-        //     }
-        // }
+        // var cwd = std.fs.cwd();
+        // cwd.deleteFile("client.map") catch |err| switch (err) {
+        //     std.fs.Dir.DeleteFileError.FileNotFound => {},
+        //     else => unreachable,
+        // };
+        // var file = cwd.createFile("client.map", .{}) catch unreachable;
+        // defer file.close();
+        // const writer = file.writer();
+        //
+        // var encode_buf: [200 * 200 * 5]u8 = undefined;
+        // const n = world_map.encode_rle_client(&encode_buf, &red_player.world_known);
+        //
+        // writer.writeAll(encode_buf[0..n]) catch unreachable;
 
         return Self{
+            .id = 69420,
             .world_map = world_map,
-            .world_map_buf = buf,
             .players = Players{
                 .red = red_player,
                 .blue = Player.init(),
@@ -108,32 +98,24 @@ pub const GameState = struct {
         };
     }
 
-    /// Type:
-    /// 0 -> unknown
-    /// 1 -> ground
-    /// 2 -> water
-    // pub fn client_map_encode(self: *const Self, allocator: Allocator) ![]u8 {
-    //     const bytes_per = 5;
-    //     const num_tiles = self.world_map.grid.len;
-    //     const bytes = bytes_per * num_tiles;
-    //
-    //     const encoding = try allocator.alloc(u8, bytes);
-    //
-    //     var i: usize = 0;
-    //
-    //     while (i < num_tiles) {
-    //     }
-    //
-    //     return encoding;
-    // }
-
     pub fn save_game(self: *const Self) void {
         _ = self;
     }
 
     pub fn get_client_state(self: *const Self) ClientGameState {
+        _ = self;
+
+        var read_file = std.fs.cwd().openFile("client.map", .{}) catch unreachable;
+        defer read_file.close();
+        const reader = read_file.reader();
+
+        var read_buf: [200 * 200 * 5]u8 = undefined;
+        const n = reader.readAll(&read_buf) catch unreachable;
+
+        const world_map = Map.decode_rle(read_buf[0..n], true);
+
         return .{
-            .world_map = self.world_map,
+            .world_map = world_map,
         };
     }
 

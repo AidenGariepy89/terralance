@@ -5,3 +5,4 @@ tools/env
 *.csv
 tmp
 .air.toml
+**/*.map
