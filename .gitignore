@@ -6,3 +6,4 @@ tools/env
 tmp
 .air.toml
 **/*.map
+**/*.db

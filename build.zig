@@ -21,15 +21,22 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    const sqlite_dep = b.dependency("zig-sqlite", .{
+        .target = target,
+        .optimize = optimize,
+    });
+
     const raylib = raylib_dep.module("raylib"); // main raylib module
     const raygui = raylib_dep.module("raygui"); // raygui module
     const raylib_artifact = raylib_dep.artifact("raylib"); // raylib C library
     const zigimg = zigimg_dep.module("zigimg"); // zigimg
+    const sqlite = sqlite_dep.module("sqlite");
 
     exe.linkLibrary(raylib_artifact);
     exe.root_module.addImport("raylib", raylib);
     exe.root_module.addImport("raygui", raygui);
     exe.root_module.addImport("zigimg", zigimg);
+    exe.root_module.addImport("sqlite", sqlite);
 
     b.installArtifact(exe);
 
@@ -54,6 +61,7 @@ pub fn build(b: *std.Build) void {
     exe_unit_tests.root_module.addImport("raylib", raylib);
     exe_unit_tests.root_module.addImport("raygui", raygui);
     exe_unit_tests.root_module.addImport("zigimg", zigimg);
+    exe_unit_tests.root_module.addImport("sqlite", sqlite);
 
     const run_exe_unit_tests = b.addRunArtifact(exe_unit_tests);
 

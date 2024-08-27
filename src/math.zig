@@ -283,6 +283,34 @@ pub fn cubic_bezier(p0: Vec, p1: Vec, p2: Vec, p3: Vec, t: f32) Vec {
     return s;
 }
 
+pub fn u64_to_u8s(input: u64) [8]u8 {
+    return .{
+        @intCast((input >> 0) & 0xff),
+        @intCast((input >> 8) & 0xff),
+        @intCast((input >> 16) & 0xff),
+        @intCast((input >> 24) & 0xff),
+        @intCast((input >> 32) & 0xff),
+        @intCast((input >> 40) & 0xff),
+        @intCast((input >> 48) & 0xff),
+        @intCast((input >> 56) & 0xff),
+    };
+}
+
+pub fn u8s_to_u64(input: []u8) u64 {
+    assert(input.len == 8, "Invalid input");
+
+    const x1 = @as(u64, @intCast(input[0])) << 0;
+    const x2 = @as(u64, @intCast(input[1])) << 8;
+    const x3 = @as(u64, @intCast(input[2])) << 16;
+    const x4 = @as(u64, @intCast(input[3])) << 24;
+    const x5 = @as(u64, @intCast(input[4])) << 32;
+    const x6 = @as(u64, @intCast(input[5])) << 40;
+    const x7 = @as(u64, @intCast(input[6])) << 48;
+    const x8 = @as(u64, @intCast(input[7])) << 56;
+
+    return x1 | x2 | x3 | x4 | x5 | x6 | x7 | x8;
+}
+
 test "dot and cross" {
     const vec_a = Vec.init(1, 2);
     const vec_b = Vec.init(2, 1);

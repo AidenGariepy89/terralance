@@ -15,15 +15,6 @@ pub const TileType = enum {
     unknown,
 };
 
-pub const RawTile = struct {
-    tile_type: TileType,
-    /// 0-255, sea level to mountain peak for ground,
-    /// ocean floor to sea level for water.
-    altitude: u8,
-
-    temperature: u8,
-};
-
 pub const Tile = struct {
     tile_type: TileType,
     r: u8,
@@ -146,7 +137,8 @@ pub const Map = struct {
         return image.toTexture();
     }
 
-    const MetadataLength: u32 = 8;
+    pub const MetadataLength: u32 = 8;
+    pub const RLEPacketLength: u32 = 5;
 
     pub fn encode_rle(self: Self, buf: []u8) usize {
         self.encode_metadata(buf);

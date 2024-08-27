@@ -1,5 +1,6 @@
 const std = @import("std");
 const map = @import("map.zig");
+const utils = @import("../utils.zig");
 const assert = @import("../assert.zig").assert;
 const Map = map.Map;
 const Vec = @import("../math.zig").Vec;
@@ -42,8 +43,11 @@ pub const GameState = struct {
     const player_blue_start_col: u32 = 100;
     const player_start_view_radius: u32 = 16;
 
-    const NewGameSettings = struct {
-        seed: ?u64 = null,
+    pub const MaxPlayers = 4;
+
+    pub const NewGameSettings = struct {
+        id: u64,
+        seed: u64,
         player_count: u8 = 2,
     };
 
@@ -51,7 +55,7 @@ pub const GameState = struct {
         assert(settings.player_count > 1, "Must have more than one player!");
         assert(settings.player_count < 3, "More than two players not implemented yet!");
 
-        const world_map = Map.generate(settings.seed orelse gen_seed(), .{
+        const world_map = Map.generate(settings.seed, .{
             .sea_level = 0.18,
 
             .continent_noise_min = -0.0043,
@@ -89,7 +93,7 @@ pub const GameState = struct {
         // writer.writeAll(encode_buf[0..n]) catch unreachable;
 
         return Self{
-            .id = 69420,
+            .id = settings.id,
             .world_map = world_map,
             .players = Players{
                 .red = red_player,
@@ -99,7 +103,29 @@ pub const GameState = struct {
     }
 
     pub fn save_game(self: *const Self) void {
-        _ = self;
+        var path_buf: [512]u8 = undefined;
+        const path = std.fmt.bufPrint(&path_buf, "{}/{}{}", .{utils.SaveDirRelPath, self.id, utils.SaveFileType}) catch unreachable;
+
+        var save_file = std.fs.cwd().createFile(path, .{}) catch unreachable;
+        defer save_file.close();
+
+        var map_buf: [MapWidth * MapWidth * Map.RLEPacketLength]u8 = undefined;
+        const n = self.world_map.encode_rle(&map_buf);
+
+        save_file.writeAll(map_buf[0..n]) catch unreachable;
+    }
+
+    pub fn load_game(game_id: u64) Self {
+        var path_buf: [512]u8 = undefined;
+        const path = std.fmt.bufPrint(&path_buf, "{}/{}{}", .{utils.SaveDirRelPath, game_id, utils.SaveFileType}) catch unreachable;
+
+        var save_file = std.fs.cwd().openFile(path, .{}) catch unreachable;
+        defer save_file.close();
+
+        var buf: [MapWidth * MapWidth * Map.RLEPacketLength]u8 = undefined;
+        const n = save_file.readAll(&buf) catch unreachable;
+
+        return Map.decode_rle(buf[0..n], false);
     }
 
     pub fn get_client_state(self: *const Self) ClientGameState {
@@ -117,9 +143,5 @@ pub const GameState = struct {
         return .{
             .world_map = world_map,
         };
-    }
-
-    fn gen_seed() u64 {
-        return @intCast(std.time.milliTimestamp());
     }
 };
