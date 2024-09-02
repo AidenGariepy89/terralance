@@ -27,6 +27,10 @@ pub fn run() !void {
             return error.ServerError;
         },
     }
+
+    std.time.sleep(3_000_000_000);
+
+    try stream.writeAll("m\nq\n");
 }
 
 fn handshake(stream: net.Stream, player_id: u64, game_id: u64) !void {

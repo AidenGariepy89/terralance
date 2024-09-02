@@ -29,10 +29,10 @@ pub fn run() !void {
 
     while (true) {
         const conn = try s.accept();
-        _ = try Thread.spawn(.{}, handle, .{ ThreadData{
+        _ = try Thread.spawn(.{}, handle, .{ThreadData{
             .conn = conn,
             .db = database.DbRef{ .db = &db, .mutex = Thread.Mutex{} },
-        } });
+        }});
     }
 }
 
@@ -47,7 +47,7 @@ fn handle(data: ThreadData) void {
     log.debug("[handler {}] performing handshake", .{conn.address});
 
     const handshake = connection_handshake(&conn) catch |err| {
-        log.err("[handler {}] handshake error: {}", .{conn.address, err});
+        log.err("[handler {}] handshake error: {}", .{ conn.address, err });
 
         writer.print("err\n{}", .{err}) catch {};
         conn.stream.close();
@@ -58,7 +58,7 @@ fn handle(data: ThreadData) void {
     log.debug("[handler {}] checking if game exists", .{conn.address});
 
     const game_exists = db_controller.game_exists(&db, handshake.game_id) catch |err| {
-        log.err("[handler {}] db error: {}", .{conn.address, err});
+        log.err("[handler {}] db error: {}", .{ conn.address, err });
 
         writer.print("err\n{}", .{err}) catch {};
         conn.stream.close();
@@ -78,7 +78,7 @@ fn handle(data: ThreadData) void {
     log.debug("[handler {}] checking if player is in game", .{conn.address});
 
     const player_in_game = db_controller.player_in_game(&db, handshake.game_id, handshake.player_id) catch |err| {
-        log.err("[handler {}] db error: {}", .{conn.address, err});
+        log.err("[handler {}] db error: {}", .{ conn.address, err });
 
         writer.print("err\n{}", .{err}) catch {};
         conn.stream.close();
@@ -96,10 +96,12 @@ fn handle(data: ThreadData) void {
     }
 
     conn.stream.writeAll("ready\n") catch |err| {
-        log.err("[handler {}] write error: {}", .{data.conn.address, err});
+        log.err("[handler {}] write error: {}", .{ data.conn.address, err });
         conn.stream.close();
         return;
     };
+
+    connection_loop(data);
 }
 
 const HandshakePacket = struct {
@@ -121,4 +123,52 @@ fn connection_handshake(conn: *const Connection) !HandshakePacket {
         .player_id = math.u8s_to_u64(buf[0..8]),
         .game_id = math.u8s_to_u64(buf[8..]),
     };
+}
+
+const PollTimeout: u64 = 100_000_000;
+
+fn connection_loop(data: ThreadData) void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // seems like the fs.File creation might be sketchy, especially for windows
+    var poller = std.io.poll(allocator, enum { stream }, .{ .stream = .{ .handle = data.conn.stream.handle } });
+    defer poller.deinit();
+
+    while (true) {
+        while (poller.pollTimeout(PollTimeout) catch |err| {
+            log.err("[handler {}] poll err: {}", .{ data.conn.address, err });
+
+            data.conn.stream.writeAll("err\n") catch {};
+            data.conn.stream.close();
+
+            return;
+        }) {
+            log.debug("[handler {}] polling...", .{ data.conn.address });
+        }
+
+        log.debug("[handler {}] done polling!", .{ data.conn.address });
+
+        const reader = poller.fifo(.stream).reader();
+
+        var buf: [1024]u8 = undefined;
+        const msg = reader.readUntilDelimiter(&buf, '\n') catch |err| {
+            log.err("[handler {}] read err: {}", .{ data.conn.address, err });
+
+            data.conn.stream.writeAll("err\n") catch {};
+            data.conn.stream.close();
+
+            return;
+        };
+
+        log.info("[handler {}] received: {s}", .{ data.conn.address, msg });
+
+        if (mem.eql(u8, msg, "q")) {
+            break;
+        }
+        if (mem.eql(u8, msg, "m")) {
+            log.info("making a move", .{});
+        }
+    }
 }
