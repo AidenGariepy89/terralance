@@ -15,9 +15,10 @@ pub fn run() !void {
 
     try handshake(stream, 2, 1);
 
-    const res = try read_server_response(stream);
+    var res = try read_server_response(stream);
     switch (res) {
         .ready => {},
+        .msg => return error.ServerError,
         .err => {
             var err_buf: [1024]u8 = undefined;
             const n = stream.readAll(&err_buf) catch unreachable;
@@ -28,9 +29,24 @@ pub fn run() !void {
         },
     }
 
+    log.info("[client] performed handshake", .{});
+
     std.time.sleep(3_000_000_000);
 
-    try stream.writeAll("m\nq\n");
+    try stream.writeAll("m\nHello there\n");
+    log.info("[client] sent msg to server", .{});
+
+    for (0..3) |_| {
+        res = try read_server_response(stream);
+        if (res != .msg) {
+            return error.ServerError;
+        }
+        var msg_buf: [2048]u8 = undefined;
+        const msg = try stream.reader().readUntilDelimiter(&msg_buf, '\n');
+        try std.io.getStdOut().writeAll(msg);
+    }
+
+    try stream.writeAll("q\n");
 }
 
 fn handshake(stream: net.Stream, player_id: u64, game_id: u64) !void {
@@ -48,6 +64,7 @@ fn handshake(stream: net.Stream, player_id: u64, game_id: u64) !void {
 const ServerResponse = enum {
     ready,
     err,
+    msg,
 };
 
 fn read_server_response(stream: net.Stream) !ServerResponse {
@@ -61,6 +78,9 @@ fn read_server_response(stream: net.Stream) !ServerResponse {
     }
     if (mem.eql(u8, res, "err")) {
         return .err;
+    }
+    if (mem.eql(u8, res, "m")) {
+        return .msg;
     }
 
     return error.UnexpectedResponse;
