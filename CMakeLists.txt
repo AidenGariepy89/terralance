@@ -31,13 +31,15 @@ if (MSVC)
     add_compile_options(/EHsc /W4) 
 else()
     # GCC and Clang
-    add_compile_options(-Wall -Wextra -Wpedantic)
+    # add_compile_options(-Wall -Wextra -Wpedantic)
+    add_compile_options(-Wall -Wextra)
 endif()
 
 # Our Project
 set(SOURCES
     "src/main.cpp"
     "src/client.cpp"
+    "src/terra_math.cpp"
 )
 
 add_compile_options(-Wall -Wextra -Wpedantic)
