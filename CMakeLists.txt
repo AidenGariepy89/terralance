@@ -37,11 +37,13 @@ endif()
 # Our Project
 set(SOURCES
     "src/main.cpp"
+    "src/client.cpp"
 )
 
 add_compile_options(-Wall -Wextra -Wpedantic)
 
 add_executable(${PROJECT_NAME} ${SOURCES})
+target_include_directories(${PROJECT_NAME} PRIVATE src)
 #set(raylib_VERBOSE 1)
 target_link_libraries(${PROJECT_NAME} raylib)
 
